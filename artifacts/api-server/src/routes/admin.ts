@@ -99,9 +99,10 @@ router.get("/admin/keys", requireAdmin, async (_req, res) => {
 });
 
 router.post("/admin/keys", requireAdmin, async (req, res) => {
-  const { validityDays = 30, useLimit, customKey } = req.body as {
+  const { validityDays = 30, useLimit, dailyUseLimit, customKey } = req.body as {
     validityDays?: number;
     useLimit?: number | null;
+    dailyUseLimit?: number | null;
     customKey?: string;
   };
 
@@ -113,6 +114,7 @@ router.post("/admin/keys", requireAdmin, async (req, res) => {
       key,
       expiresAt,
       useLimit: useLimit ?? null,
+      dailyUseLimit: dailyUseLimit ?? null,
     });
 
     notifyKeyCreated(key, validityDays, useLimit ?? null).catch(() => {});
