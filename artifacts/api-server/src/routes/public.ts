@@ -121,13 +121,27 @@ router.post("/public/like", async (req, res) => {
 
     let apiSuccess = false;
     let apiMessage = "Like sent successfully!";
+    let likesBefore: number | null = null;
+    let likesAfter: number | null = null;
+    let likesGiven: number | null = null;
+    let playerNickname: string | null = null;
+    let playerLevel: string | null = null;
     try {
       const apiRes = await fetch(apiUrl, { signal: AbortSignal.timeout(15000) });
       apiSuccess = apiRes.ok;
       const body = await apiRes.text();
       try {
-        const json = JSON.parse(body) as { message?: string; msg?: string; status?: string };
-        apiMessage = json.message ?? json.msg ?? (apiSuccess ? "Like sent successfully!" : "API error");
+        const json = JSON.parse(body) as Record<string, unknown>;
+        apiMessage = (json.message ?? json.msg ?? (apiSuccess ? "Like sent successfully!" : "API error")) as string;
+        // Parse likes counts — different APIs use different field names
+        likesBefore = (json.LikesBefor ?? json.LikesBefore ?? json.likes_before ?? json.before ?? null) as number | null;
+        likesAfter  = (json.LikesAfter  ?? json.likes_after  ?? json.after  ?? null) as number | null;
+        likesGiven  = (json.LikesGiven  ?? json.likes_given  ?? json.given  ?? json.amount ?? null) as number | null;
+        if (likesBefore !== null && likesAfter !== null && likesGiven === null) {
+          likesGiven = (likesAfter as number) - (likesBefore as number);
+        }
+        playerNickname = (json.PlayerNickname ?? json.player_nickname ?? json.nickname ?? json.name ?? null) as string | null;
+        playerLevel    = (json.PlayerLevel    ?? json.player_level    ?? json.level    ?? null) as string | null;
       } catch {
         apiMessage = apiSuccess ? "Like sent successfully!" : body.slice(0, 100);
       }
@@ -136,7 +150,6 @@ router.post("/public/like", async (req, res) => {
       return;
     }
 
-    // Update: increment total used_count + daily_use_count, set reset window if first use today
     const updateFields: Record<string, unknown> = {
       likeUsed: true,
       usedCount: sql`${keysTable.usedCount} + 1`,
@@ -149,7 +162,7 @@ router.post("/public/like", async (req, res) => {
     await db.insert(logsTable).values({ key, uid, region, action: "like", status: apiSuccess ? "success" : "fail", ipAddress: ip });
 
     notifyLike(uid, region, key, ip).catch(() => {});
-    res.json({ success: apiSuccess, message: apiMessage });
+    res.json({ success: apiSuccess, message: apiMessage, likesBefore, likesAfter, likesGiven, playerNickname, playerLevel });
   } catch (err) {
     req.log.error({ err }, "like error");
     res.status(500).json({ message: "Server error" });
