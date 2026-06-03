@@ -2,6 +2,7 @@ import { pgTable, text, serial, boolean, integer, timestamp, jsonb } from "drizz
 
 export const keysTable = pgTable("keys", {
   key: text("key").primaryKey(),
+  keyType: text("key_type").notNull().default("both"), // 'like' | 'visit' | 'both'
   expiresAt: timestamp("expires_at").notNull(),
   likeUsed: boolean("like_used").notNull().default(false),
   visitUsed: boolean("visit_used").notNull().default(false),
