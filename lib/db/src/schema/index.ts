@@ -7,6 +7,9 @@ export const keysTable = pgTable("keys", {
   visitUsed: boolean("visit_used").notNull().default(false),
   usedCount: integer("used_count").notNull().default(0),
   useLimit: integer("use_limit"),
+  dailyUseLimit: integer("daily_use_limit"),
+  dailyUseCount: integer("daily_use_count").notNull().default(0),
+  dailyUseResetAt: timestamp("daily_use_reset_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
