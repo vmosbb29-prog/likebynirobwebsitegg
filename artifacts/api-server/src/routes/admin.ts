@@ -99,12 +99,15 @@ router.get("/admin/keys", requireAdmin, async (_req, res) => {
 });
 
 router.post("/admin/keys", requireAdmin, async (req, res) => {
-  const { validityDays = 30, useLimit, dailyUseLimit, customKey } = req.body as {
+  const { validityDays = 30, useLimit, dailyUseLimit, customKey, keyType = "both" } = req.body as {
     validityDays?: number;
     useLimit?: number | null;
     dailyUseLimit?: number | null;
     customKey?: string;
+    keyType?: string;
   };
+
+  const safeKeyType = ["like", "visit", "both"].includes(keyType) ? keyType : "both";
 
   try {
     const key = customKey?.trim() || randomKey();
@@ -112,13 +115,14 @@ router.post("/admin/keys", requireAdmin, async (req, res) => {
 
     await db.insert(keysTable).values({
       key,
+      keyType: safeKeyType,
       expiresAt,
       useLimit: useLimit ?? null,
       dailyUseLimit: dailyUseLimit ?? null,
     });
 
-    notifyKeyCreated(key, validityDays, useLimit ?? null).catch(() => {});
-    res.json({ key, expiresAt });
+    notifyKeyCreated(key, validityDays, useLimit ?? null, safeKeyType).catch(() => {});
+    res.json({ key, expiresAt, keyType: safeKeyType });
   } catch (err) {
     req.log.error({ err }, "create key error");
     res.status(500).json({ message: "Server error" });
