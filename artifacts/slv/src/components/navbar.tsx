@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useLang } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { Menu, X, Zap } from "lucide-react";
+import { Menu, X } from "lucide-react";
 
 const NAV_LINKS = [
   { to: "/", key: "home" as const },
@@ -23,9 +23,11 @@ export function Navbar() {
       <div className="mx-auto max-w-6xl px-4">
         <div className="flex h-14 items-center justify-between gap-4">
           <Link href="/" className="flex items-center gap-2 shrink-0">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600/20 ring-1 ring-blue-500/40">
-              <Zap size={16} className="text-blue-400" />
-            </div>
+            <img
+              src="/logo.png"
+              alt="Like By Nirob"
+              className="h-9 w-9 rounded-lg object-cover"
+            />
             <span className="font-bold text-white text-sm tracking-wide">
               LIKE BY <span className="text-blue-400">NIROB</span>
             </span>
