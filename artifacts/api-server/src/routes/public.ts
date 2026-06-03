@@ -161,7 +161,7 @@ router.post("/public/like", async (req, res) => {
     await db.update(keysTable).set(updateFields).where(eq(keysTable.key, key));
     await db.insert(logsTable).values({ key, uid, region, action: "like", status: apiSuccess ? "success" : "fail", ipAddress: ip });
 
-    notifyLike(uid, region, key, ip).catch(() => {});
+    notifyLike(uid, region, key, ip, { likesBefore, likesAfter, likesGiven, playerNickname, playerLevel }).catch(() => {});
     res.json({ success: apiSuccess, message: apiMessage, likesBefore, likesAfter, likesGiven, playerNickname, playerLevel });
   } catch (err) {
     req.log.error({ err }, "like error");
@@ -230,13 +230,19 @@ router.post("/public/visit", async (req, res) => {
 
     let apiSuccess = false;
     let apiMessage = "Visit sent successfully!";
+    let visitCount: number | null = null;
+    let visitNickname: string | null = null;
+    let visitLevel: string | null = null;
     try {
       const apiRes = await fetch(apiUrl, { signal: AbortSignal.timeout(15000) });
       apiSuccess = apiRes.ok;
       const body = await apiRes.text();
       try {
-        const json = JSON.parse(body) as { message?: string; msg?: string; status?: string };
-        apiMessage = json.message ?? json.msg ?? (apiSuccess ? "Visit sent successfully!" : "API error");
+        const json = JSON.parse(body) as Record<string, unknown>;
+        apiMessage = (json.message ?? json.msg ?? (apiSuccess ? "Visit sent successfully!" : "API error")) as string;
+        visitCount     = (json.VisitCount  ?? json.visit_count  ?? json.visits   ?? json.count  ?? null) as number | null;
+        visitNickname  = (json.PlayerNickname ?? json.player_nickname ?? json.nickname ?? json.name ?? null) as string | null;
+        visitLevel     = (json.PlayerLevel    ?? json.player_level    ?? json.level    ?? null) as string | null;
       } catch {
         apiMessage = apiSuccess ? "Visit sent successfully!" : body.slice(0, 100);
       }
@@ -256,8 +262,8 @@ router.post("/public/visit", async (req, res) => {
     await db.update(keysTable).set(updateFields).where(eq(keysTable.key, key));
     await db.insert(logsTable).values({ key, uid, region, action: "visit", status: apiSuccess ? "success" : "fail", ipAddress: ip });
 
-    notifyVisit(uid, region, key, ip).catch(() => {});
-    res.json({ success: apiSuccess, message: apiMessage });
+    notifyVisit(uid, region, key, ip, { visitCount, playerNickname: visitNickname, playerLevel: visitLevel }).catch(() => {});
+    res.json({ success: apiSuccess, message: apiMessage, visitCount, playerNickname: visitNickname, playerLevel: visitLevel });
   } catch (err) {
     req.log.error({ err }, "visit error");
     res.status(500).json({ message: "Server error" });
