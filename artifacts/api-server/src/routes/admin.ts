@@ -126,7 +126,7 @@ router.post("/admin/keys", requireAdmin, async (req, res) => {
 });
 
 router.delete("/admin/keys/:key", requireAdmin, async (req, res) => {
-  const { key } = req.params;
+  const key = req.params.key as string;
   try {
     await db.delete(keysTable).where(eq(keysTable.key, key));
     notifyKeyDeleted(key).catch(() => {});
@@ -161,7 +161,7 @@ router.post("/admin/ban-ip", requireAdmin, async (req, res) => {
 });
 
 router.delete("/admin/ban-ip/:ip", requireAdmin, async (req, res) => {
-  const { ip } = req.params;
+  const ip = req.params.ip as string;
   try {
     await db.delete(bannedIpsTable).where(eq(bannedIpsTable.ip, ip));
     res.json({ success: true });
