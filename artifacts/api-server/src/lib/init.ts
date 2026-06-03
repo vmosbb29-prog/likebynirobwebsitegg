@@ -2,8 +2,6 @@ import bcrypt from "bcryptjs";
 import { db, settingsTable, pool } from "@workspace/db";
 import { logger } from "./logger.js";
 
-// Raw SQL — runs before any Drizzle query so tables always exist
-// on fresh Render deployments (no drizzle-kit push needed)
 const CREATE_TABLES_SQL = `
 CREATE TABLE IF NOT EXISTS keys (
   key TEXT PRIMARY KEY,
@@ -12,6 +10,9 @@ CREATE TABLE IF NOT EXISTS keys (
   visit_used BOOLEAN NOT NULL DEFAULT FALSE,
   used_count INTEGER NOT NULL DEFAULT 0,
   use_limit INTEGER,
+  daily_use_limit INTEGER,
+  daily_use_count INTEGER NOT NULL DEFAULT 0,
+  daily_use_reset_at TIMESTAMP,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
@@ -53,17 +54,20 @@ CREATE TABLE IF NOT EXISTS auto_like_tasks (
   active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- Add new daily-limit columns to existing keys table (safe: IF NOT EXISTS)
+ALTER TABLE keys ADD COLUMN IF NOT EXISTS daily_use_limit INTEGER;
+ALTER TABLE keys ADD COLUMN IF NOT EXISTS daily_use_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE keys ADD COLUMN IF NOT EXISTS daily_use_reset_at TIMESTAMP;
 `;
 
 const DEFAULT_PASSWORD = "nirob360";
 
 export async function initDb(): Promise<void> {
   try {
-    // Step 1: Auto-create tables (idempotent, safe to run every startup)
     await pool.query(CREATE_TABLES_SQL);
     logger.info("Tables verified/created OK");
 
-    // Step 2: Seed default settings if empty
     const [row] = await db.select({ id: settingsTable.id }).from(settingsTable).limit(1);
     if (!row) {
       const adminPasswordHash = bcrypt.hashSync(DEFAULT_PASSWORD, 10);
