@@ -89,6 +89,12 @@ router.post("/public/like", async (req, res) => {
       return;
     }
 
+    if (rawRow.keyType === "visit") {
+      await db.insert(logsTable).values({ key, uid, region, action: "like", status: "fail", ipAddress: ip });
+      res.status(403).json({ message: "This key is for Visit only. Please use a Like key." });
+      return;
+    }
+
     if (new Date(rawRow.expiresAt).getTime() < Date.now()) {
       await db.insert(logsTable).values({ key, uid, region, action: "like", status: "fail", ipAddress: ip });
       res.status(403).json({ message: "Key expired" });
@@ -195,6 +201,12 @@ router.post("/public/visit", async (req, res) => {
     if (!rawRow) {
       await db.insert(logsTable).values({ key, uid, region, action: "visit", status: "fail", ipAddress: ip });
       res.status(404).json({ message: "Key not found" });
+      return;
+    }
+
+    if (rawRow.keyType === "like") {
+      await db.insert(logsTable).values({ key, uid, region, action: "visit", status: "fail", ipAddress: ip });
+      res.status(403).json({ message: "This key is for Like only. Please use a Visit key." });
       return;
     }
 
