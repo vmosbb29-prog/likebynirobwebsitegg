@@ -55,10 +55,11 @@ CREATE TABLE IF NOT EXISTS auto_like_tasks (
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
--- Add new daily-limit columns to existing keys table (safe: IF NOT EXISTS)
+-- Add new columns to existing keys table (safe: IF NOT EXISTS)
 ALTER TABLE keys ADD COLUMN IF NOT EXISTS daily_use_limit INTEGER;
 ALTER TABLE keys ADD COLUMN IF NOT EXISTS daily_use_count INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE keys ADD COLUMN IF NOT EXISTS daily_use_reset_at TIMESTAMP;
+ALTER TABLE keys ADD COLUMN IF NOT EXISTS key_type TEXT NOT NULL DEFAULT 'both';
 `;
 
 const DEFAULT_PASSWORD = "nirob360";
