@@ -7,6 +7,17 @@ import { getOnlineCount } from "../lib/online.js";
 
 const router: IRouter = Router();
 
+// Helper: check + reset daily counter if window has passed, returns updated keyRow
+async function checkAndResetDaily(keyRow: typeof keysTable.$inferSelect) {
+  if (keyRow.dailyUseResetAt && new Date(keyRow.dailyUseResetAt).getTime() <= Date.now()) {
+    await db.update(keysTable)
+      .set({ dailyUseCount: 0, dailyUseResetAt: null })
+      .where(eq(keysTable.key, keyRow.key));
+    return { ...keyRow, dailyUseCount: 0, dailyUseResetAt: null };
+  }
+  return keyRow;
+}
+
 router.post("/public/check-key", async (req, res) => {
   const { key } = req.body as { key?: string };
   const ip = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ?? "unknown";
@@ -30,14 +41,18 @@ router.post("/public/check-key", async (req, res) => {
       return;
     }
 
+    const fresh = await checkAndResetDaily(keyRow);
     notifyKeyCheck(key, new Date(keyRow.expiresAt).getTime() > Date.now(), ip).catch(() => {});
     res.json({
-      key: keyRow.key,
-      expiresAt: keyRow.expiresAt,
-      likeUsed: keyRow.likeUsed,
-      visitUsed: keyRow.visitUsed,
-      usedCount: keyRow.usedCount,
-      useLimit: keyRow.useLimit,
+      key: fresh.key,
+      expiresAt: fresh.expiresAt,
+      likeUsed: fresh.likeUsed,
+      visitUsed: fresh.visitUsed,
+      usedCount: fresh.usedCount,
+      useLimit: fresh.useLimit,
+      dailyUseLimit: fresh.dailyUseLimit,
+      dailyUseCount: fresh.dailyUseCount,
+      dailyUseResetAt: fresh.dailyUseResetAt,
     });
   } catch (err) {
     req.log.error({ err }, "check-key error");
@@ -67,22 +82,33 @@ router.post("/public/like", async (req, res) => {
       return;
     }
 
-    const [keyRow] = await db.select().from(keysTable).where(eq(keysTable.key, key)).limit(1);
-    if (!keyRow) {
+    const [rawRow] = await db.select().from(keysTable).where(eq(keysTable.key, key)).limit(1);
+    if (!rawRow) {
       await db.insert(logsTable).values({ key, uid, region, action: "like", status: "fail", ipAddress: ip });
       res.status(404).json({ message: "Key not found" });
       return;
     }
 
-    if (new Date(keyRow.expiresAt).getTime() < Date.now()) {
+    if (new Date(rawRow.expiresAt).getTime() < Date.now()) {
       await db.insert(logsTable).values({ key, uid, region, action: "like", status: "fail", ipAddress: ip });
       res.status(403).json({ message: "Key expired" });
       return;
     }
 
-    if (keyRow.useLimit !== null && keyRow.usedCount >= keyRow.useLimit) {
+    if (rawRow.useLimit !== null && rawRow.usedCount >= rawRow.useLimit) {
       await db.insert(logsTable).values({ key, uid, region, action: "like", status: "fail", ipAddress: ip });
       res.status(403).json({ message: "Key use limit reached" });
+      return;
+    }
+
+    // Check + reset daily window
+    const keyRow = await checkAndResetDaily(rawRow);
+
+    // Daily limit check
+    if (keyRow.dailyUseLimit !== null && keyRow.dailyUseCount >= keyRow.dailyUseLimit) {
+      await db.insert(logsTable).values({ key, uid, region, action: "like", status: "fail", ipAddress: ip });
+      const resetAt = keyRow.dailyUseResetAt ? new Date(keyRow.dailyUseResetAt).toLocaleTimeString() : "24h";
+      res.status(429).json({ message: `Daily limit reached (${keyRow.dailyUseLimit}/day). Resets at ${resetAt}.` });
       return;
     }
 
@@ -110,9 +136,16 @@ router.post("/public/like", async (req, res) => {
       return;
     }
 
-    await db.update(keysTable)
-      .set({ likeUsed: true, usedCount: sql`${keysTable.usedCount} + 1` })
-      .where(eq(keysTable.key, key));
+    // Update: increment total used_count + daily_use_count, set reset window if first use today
+    const updateFields: Record<string, unknown> = {
+      likeUsed: true,
+      usedCount: sql`${keysTable.usedCount} + 1`,
+      dailyUseCount: sql`${keysTable.dailyUseCount} + 1`,
+    };
+    if (!keyRow.dailyUseResetAt) {
+      updateFields.dailyUseResetAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    }
+    await db.update(keysTable).set(updateFields).where(eq(keysTable.key, key));
     await db.insert(logsTable).values({ key, uid, region, action: "like", status: apiSuccess ? "success" : "fail", ipAddress: ip });
 
     notifyLike(uid, region, key, ip).catch(() => {});
@@ -145,22 +178,33 @@ router.post("/public/visit", async (req, res) => {
       return;
     }
 
-    const [keyRow] = await db.select().from(keysTable).where(eq(keysTable.key, key)).limit(1);
-    if (!keyRow) {
+    const [rawRow] = await db.select().from(keysTable).where(eq(keysTable.key, key)).limit(1);
+    if (!rawRow) {
       await db.insert(logsTable).values({ key, uid, region, action: "visit", status: "fail", ipAddress: ip });
       res.status(404).json({ message: "Key not found" });
       return;
     }
 
-    if (new Date(keyRow.expiresAt).getTime() < Date.now()) {
+    if (new Date(rawRow.expiresAt).getTime() < Date.now()) {
       await db.insert(logsTable).values({ key, uid, region, action: "visit", status: "fail", ipAddress: ip });
       res.status(403).json({ message: "Key expired" });
       return;
     }
 
-    if (keyRow.useLimit !== null && keyRow.usedCount >= keyRow.useLimit) {
+    if (rawRow.useLimit !== null && rawRow.usedCount >= rawRow.useLimit) {
       await db.insert(logsTable).values({ key, uid, region, action: "visit", status: "fail", ipAddress: ip });
       res.status(403).json({ message: "Key use limit reached" });
+      return;
+    }
+
+    // Check + reset daily window
+    const keyRow = await checkAndResetDaily(rawRow);
+
+    // Daily limit check
+    if (keyRow.dailyUseLimit !== null && keyRow.dailyUseCount >= keyRow.dailyUseLimit) {
+      await db.insert(logsTable).values({ key, uid, region, action: "visit", status: "fail", ipAddress: ip });
+      const resetAt = keyRow.dailyUseResetAt ? new Date(keyRow.dailyUseResetAt).toLocaleTimeString() : "24h";
+      res.status(429).json({ message: `Daily limit reached (${keyRow.dailyUseLimit}/day). Resets at ${resetAt}.` });
       return;
     }
 
@@ -188,9 +232,15 @@ router.post("/public/visit", async (req, res) => {
       return;
     }
 
-    await db.update(keysTable)
-      .set({ visitUsed: true, usedCount: sql`${keysTable.usedCount} + 1` })
-      .where(eq(keysTable.key, key));
+    const updateFields: Record<string, unknown> = {
+      visitUsed: true,
+      usedCount: sql`${keysTable.usedCount} + 1`,
+      dailyUseCount: sql`${keysTable.dailyUseCount} + 1`,
+    };
+    if (!keyRow.dailyUseResetAt) {
+      updateFields.dailyUseResetAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    }
+    await db.update(keysTable).set(updateFields).where(eq(keysTable.key, key));
     await db.insert(logsTable).values({ key, uid, region, action: "visit", status: apiSuccess ? "success" : "fail", ipAddress: ip });
 
     notifyVisit(uid, region, key, ip).catch(() => {});
