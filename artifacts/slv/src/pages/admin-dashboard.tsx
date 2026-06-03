@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 type Tab = "stats" | "keys" | "logs" | "settings" | "banned" | "autolike";
 
 interface Stats { totalKeys: number; activeKeys: number; totalLikes: number; totalVisits: number; totalLogs: number; bannedIps: number; onlineUsers: number; }
-interface KeyRow { key: string; expiresAt: string; likeUsed: boolean; visitUsed: boolean; usedCount: number; useLimit: number | null; dailyUseLimit: number | null; dailyUseCount: number; dailyUseResetAt: string | null; createdAt: string; }
+interface KeyRow { key: string; keyType: string; expiresAt: string; likeUsed: boolean; visitUsed: boolean; usedCount: number; useLimit: number | null; dailyUseLimit: number | null; dailyUseCount: number; dailyUseResetAt: string | null; createdAt: string; }
 interface LogRow { id: number; key: string | null; uid: string | null; region: string | null; action: string; status: string; ipAddress: string | null; createdAt: string; }
 interface BannedIp { ip: string; createdAt: string; }
 interface AdminSettings {
@@ -36,7 +36,7 @@ export default function AdminDashboard() {
   const [autoLikeTasks, setAutoLikeTasks] = useState<AutoLikeTask[]>([]);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [alUid, setAlUid] = useState(""); const [alRegion, setAlRegion] = useState("IND"); const [alDays, setAlDays] = useState(7); const [alRunning, setAlRunning] = useState(false);
-  const [newKeyDays, setNewKeyDays] = useState(30); const [newKeyLimit, setNewKeyLimit] = useState<number | "">("");  const [newKeyDailyLimit, setNewKeyDailyLimit] = useState<number | "">("");  const [newKeyCustom, setNewKeyCustom] = useState("");
+  const [newKeyDays, setNewKeyDays] = useState(30); const [newKeyLimit, setNewKeyLimit] = useState<number | "">("");  const [newKeyDailyLimit, setNewKeyDailyLimit] = useState<number | "">("");  const [newKeyCustom, setNewKeyCustom] = useState(""); const [newKeyType, setNewKeyType] = useState<"like"|"visit"|"both">("both");
   const [banIpInput, setBanIpInput] = useState("");
   const [oldPw, setOldPw] = useState(""); const [newPw, setNewPw] = useState("");
 
@@ -56,7 +56,7 @@ export default function AdminDashboard() {
 
   async function createKey(e: React.FormEvent) {
     e.preventDefault();
-    const r = await adminFetch("/api/admin/keys", { method: "POST", body: JSON.stringify({ validityDays: newKeyDays, useLimit: newKeyLimit === "" ? null : Number(newKeyLimit), dailyUseLimit: newKeyDailyLimit === "" ? null : Number(newKeyDailyLimit), customKey: newKeyCustom.trim() || undefined }) });
+    const r = await adminFetch("/api/admin/keys", { method: "POST", body: JSON.stringify({ validityDays: newKeyDays, useLimit: newKeyLimit === "" ? null : Number(newKeyLimit), dailyUseLimit: newKeyDailyLimit === "" ? null : Number(newKeyDailyLimit), customKey: newKeyCustom.trim() || undefined, keyType: newKeyType }) });
     const data = await r.json() as { key?: string; message?: string };
     if (r.ok) { showMsg(`Key created: ${data.key}`, true); setNewKeyCustom(""); setNewKeyDailyLimit(""); fetchKeys(); fetchStats(); } else showMsg(data.message ?? "Error", false);
   }
@@ -174,11 +174,23 @@ export default function AdminDashboard() {
         <div className="space-y-5">
           <form onSubmit={createKey} className="card-glass rounded-2xl p-5 space-y-4">
             <h2 className="font-semibold text-white text-sm flex items-center gap-2"><Plus size={14} className="text-blue-400" /> Create Key</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               <div><label className="text-xs text-slate-400 block mb-1">Validity (days)</label><input type="number" min={1} className="input-field w-full" value={newKeyDays} onChange={e => setNewKeyDays(Number(e.target.value))} /></div>
               <div><label className="text-xs text-slate-400 block mb-1">Total Limit (blank = ∞)</label><input type="number" min={1} className="input-field w-full" value={newKeyLimit} onChange={e => setNewKeyLimit(e.target.value === "" ? "" : Number(e.target.value))} placeholder="∞" /></div>
               <div><label className="text-xs text-slate-400 block mb-1">Daily Limit /24h (blank = ∞)</label><input type="number" min={1} className="input-field w-full" value={newKeyDailyLimit} onChange={e => setNewKeyDailyLimit(e.target.value === "" ? "" : Number(e.target.value))} placeholder="∞" /></div>
-              <div><label className="text-xs text-slate-400 block mb-1">Custom Key (optional)</label><input type="text" className="input-field w-full" value={newKeyCustom} onChange={e => setNewKeyCustom(e.target.value)} placeholder="Auto-generate" /></div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">Key Type</label>
+                <div className="flex gap-2">
+                  {(["like","visit","both"] as const).map(t => (
+                    <button key={t} type="button" onClick={() => setNewKeyType(t)} className={`flex-1 rounded-lg border py-1.5 text-xs font-semibold transition-all ${newKeyType === t ? t === "like" ? "bg-pink-600/30 border-pink-600/50 text-pink-300" : t === "visit" ? "bg-purple-600/30 border-purple-600/50 text-purple-300" : "bg-blue-600/30 border-blue-600/50 text-blue-300" : "border-blue-900/30 text-slate-500 hover:text-slate-300"}`}>
+                      {t === "like" ? "👍 Like" : t === "visit" ? "👁 Visit" : "👍👁 Both"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="md:col-span-2"><label className="text-xs text-slate-400 block mb-1">Custom Key (optional)</label><input type="text" className="input-field w-full" value={newKeyCustom} onChange={e => setNewKeyCustom(e.target.value)} placeholder="Auto-generate" /></div>
             </div>
             <button type="submit" className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500 transition-all flex items-center gap-1.5"><Plus size={13} /> Create Key</button>
           </form>
@@ -189,17 +201,17 @@ export default function AdminDashboard() {
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
-                <thead><tr className="border-b border-blue-900/20 text-slate-500">{["Key","Expires","Like","Visit","Used","Total Limit","Daily Today","Daily Limit","Action"].map(h => <th key={h} className="p-3 text-left font-medium whitespace-nowrap">{h}</th>)}</tr></thead>
+                <thead><tr className="border-b border-blue-900/20 text-slate-500">{["Key","Type","Expires","Used","Total Limit","Daily Today","Daily Limit","Action"].map(h => <th key={h} className="p-3 text-left font-medium whitespace-nowrap">{h}</th>)}</tr></thead>
                 <tbody className="divide-y divide-blue-900/10">
                   {keys.map(k => {
                     const dailyResetTime = k.dailyUseResetAt ? new Date(k.dailyUseResetAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : null;
                     const dailyOver = k.dailyUseLimit !== null && k.dailyUseCount >= k.dailyUseLimit;
+                    const typeLabel = k.keyType === "like" ? { text: "👍 Like", cls: "bg-pink-900/30 text-pink-300 border-pink-800/40" } : k.keyType === "visit" ? { text: "👁 Visit", cls: "bg-purple-900/30 text-purple-300 border-purple-800/40" } : { text: "👍👁 Both", cls: "bg-blue-900/30 text-blue-300 border-blue-800/40" };
                     return (
                     <tr key={k.key} className="hover:bg-white/2">
                       <td className="p-3 font-mono text-blue-300">{k.key}</td>
+                      <td className="p-3"><span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${typeLabel.cls}`}>{typeLabel.text}</span></td>
                       <td className={`p-3 whitespace-nowrap ${new Date(k.expiresAt).getTime() < Date.now() ? "text-red-400" : "text-green-400"}`}>{new Date(k.expiresAt).toLocaleDateString()}</td>
-                      <td className="p-3">{k.likeUsed ? <span className="text-pink-400">✓</span> : <span className="text-slate-600">—</span>}</td>
-                      <td className="p-3">{k.visitUsed ? <span className="text-purple-400">✓</span> : <span className="text-slate-600">—</span>}</td>
                       <td className="p-3 text-slate-300">{k.usedCount}</td>
                       <td className="p-3 text-slate-400">{k.useLimit ?? "∞"}</td>
                       <td className="p-3">
@@ -212,7 +224,7 @@ export default function AdminDashboard() {
                     </tr>
                     );
                   })}
-                  {keys.length === 0 && <tr><td colSpan={9} className="p-6 text-center text-slate-600">No keys</td></tr>}
+                  {keys.length === 0 && <tr><td colSpan={8} className="p-6 text-center text-slate-600">No keys</td></tr>}
                 </tbody>
               </table>
             </div>
