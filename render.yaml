@@ -1,0 +1,31 @@
+# Render deployment configuration for Like By Nirob
+# Docs: https://render.com/docs/render-yaml-config
+
+services:
+  - type: web
+    name: like-by-nirob
+    runtime: node
+    plan: free
+    region: singapore  # Closest to Bangladesh — change to: oregon / frankfurt / ohio
+    buildCommand: >
+      npm install -g pnpm@10 &&
+      pnpm install &&
+      pnpm --filter @workspace/slv run build &&
+      pnpm --filter @workspace/api-server run build
+    startCommand: node artifacts/api-server/dist/index.mjs
+    healthCheckPath: /api/ping
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SESSION_SECRET
+        generateValue: true   # Render auto-generates a secure random value
+      - key: DATABASE_URL
+        fromDatabase:
+          name: like-by-nirob-db
+          property: connectionString
+
+# Render free PostgreSQL (expires after 90 days — read guide for permanent alternatives)
+databases:
+  - name: like-by-nirob-db
+    plan: free
+    region: singapore
