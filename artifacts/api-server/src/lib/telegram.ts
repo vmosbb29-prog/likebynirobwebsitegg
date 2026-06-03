@@ -82,9 +82,10 @@ export async function notifyAdminLogin(success: boolean, ip: string): Promise<vo
   );
 }
 
-export async function notifyKeyCreated(key: string, validityDays: number, useLimit: number | null): Promise<void> {
+export async function notifyKeyCreated(key: string, validityDays: number, useLimit: number | null, keyType = "both"): Promise<void> {
+  const typeLabel = keyType === "like" ? "👍 Like Only" : keyType === "visit" ? "👁 Visit Only" : "👍👁 Both";
   await sendTelegram(
-    `➕ <b>KEY CREATED</b>\nKey: <code>${key}</code>\nValidity: <b>${validityDays} days</b>\nLimit: <b>${useLimit ?? "∞"}</b>`
+    `➕ <b>KEY CREATED</b>\nKey: <code>${key}</code>\nType: <b>${typeLabel}</b>\nValidity: <b>${validityDays} days</b>\nLimit: <b>${useLimit ?? "∞"}</b>`
   );
 }
 
