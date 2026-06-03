@@ -24,16 +24,48 @@ async function sendTelegram(text: string): Promise<void> {
   }
 }
 
-export async function notifyLike(uid: string, region: string, key: string, ip: string): Promise<void> {
-  await sendTelegram(
-    `👍 <b>LIKE SENT</b>\nUID: <code>${uid}</code>\nRegion: <b>${region}</b>\nKey: <code>${key}</code>\nIP: <code>${ip}</code>`
-  );
+interface LikeInfo {
+  likesBefore?: number | null;
+  likesAfter?: number | null;
+  likesGiven?: number | null;
+  playerNickname?: string | null;
+  playerLevel?: string | null;
 }
 
-export async function notifyVisit(uid: string, region: string, key: string, ip: string): Promise<void> {
-  await sendTelegram(
-    `👁 <b>VISIT SENT</b>\nUID: <code>${uid}</code>\nRegion: <b>${region}</b>\nKey: <code>${key}</code>\nIP: <code>${ip}</code>`
-  );
+interface VisitInfo {
+  visitCount?: number | null;
+  playerNickname?: string | null;
+  playerLevel?: string | null;
+}
+
+export async function notifyLike(uid: string, region: string, key: string, ip: string, info?: LikeInfo): Promise<void> {
+  const lines: string[] = [
+    `👍 <b>LIKE SENT</b>`,
+    `━━━━━━━━━━━━━━━`,
+  ];
+  if (info?.playerNickname) lines.push(`👤 Player: <b>${info.playerNickname}</b>${info.playerLevel ? ` (Lv.${info.playerLevel})` : ""}`);
+  lines.push(`🆔 UID: <code>${uid}</code>`);
+  lines.push(`🌍 Region: <b>${region}</b>`);
+  if (info?.likesBefore != null) lines.push(`📊 Before: <b>${info.likesBefore}</b>`);
+  if (info?.likesGiven   != null) lines.push(`➕ Sent: <b>+${info.likesGiven}</b>`);
+  if (info?.likesAfter   != null) lines.push(`📈 After: <b>${info.likesAfter}</b>`);
+  lines.push(`🔑 Key: <code>${key}</code>`);
+  lines.push(`📍 IP: <code>${ip}</code>`);
+  await sendTelegram(lines.join("\n"));
+}
+
+export async function notifyVisit(uid: string, region: string, key: string, ip: string, info?: VisitInfo): Promise<void> {
+  const lines: string[] = [
+    `👁 <b>VISIT SENT</b>`,
+    `━━━━━━━━━━━━━━━`,
+  ];
+  if (info?.playerNickname) lines.push(`👤 Player: <b>${info.playerNickname}</b>${info.playerLevel ? ` (Lv.${info.playerLevel})` : ""}`);
+  lines.push(`🆔 UID: <code>${uid}</code>`);
+  lines.push(`🌍 Region: <b>${region}</b>`);
+  if (info?.visitCount != null) lines.push(`👁 Visits Sent: <b>${info.visitCount}</b>`);
+  lines.push(`🔑 Key: <code>${key}</code>`);
+  lines.push(`📍 IP: <code>${ip}</code>`);
+  await sendTelegram(lines.join("\n"));
 }
 
 export async function notifyKeyCheck(key: string, valid: boolean, ip: string): Promise<void> {
